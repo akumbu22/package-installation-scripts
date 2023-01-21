@@ -42,9 +42,10 @@ case $1 in
                 cd /opt
                 echo Installing the apps to get us started...
                 sudo yum -y install unzip wget git tree vim
-                echo Installing Java JDK 1.8+, the required version for sonarQube to start
-                sudo wget -c --header "Cookie: oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jdk/8u131-b11/d54c1d3a095b4ff2b6607d096fa80163/jdk-8u131-linux-x64.rpm
-                sudo yum install jdk-8u131-linux-x64.rpm -y
+                echo Installing Java, the required version for sonarQube to start
+                sudo yum install java-11-openjdk -y
+                #sudo wget -c --header "Cookie: oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jdk/8u131-b11/d54c1d3a095b4ff2b6607d096fa80163/jdk-8u131-linux-x64.rpm
+                #sudo yum install jdk-8u131-linux-x64.rpm -y
                 echo Downloading and installing sonarQube...
                 sleep 1
                 sudo wget https://binaries.sonarsource.com/Distribution/sonarqube/sonarqube-7.8.zip
@@ -72,8 +73,6 @@ case $1 in
                 sleep 1
                 sh /opt/sonarqube/bin/linux-x86-64/sonar.sh start
                 sh /opt/sonarqube/bin/linux-x86-64/sonar.sh status
-                echo Creating soft link to run sonar.sh in 1 second...
-                sudo ln -s /opt/sonarqube/bin/linux-x86-64/sonar.sh /usr/bin/sonar.sh
                 #The command below will delete the script from /opt
                 sudo rm -r /opt/$0
                 ;;
