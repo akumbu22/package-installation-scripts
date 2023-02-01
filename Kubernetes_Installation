@@ -4,26 +4,32 @@
 # The manager will require t2.medium, while the workers will require a minimum of 2GB RAM
 # You will need to open certain required ports. For our exercise, we will open "all trafic".
 
-# Update the apt package index and install packages needed to use the Kubernetes apt repository
-sudo apt-get update -y
-sudo apt-get install -y ca-certificates curl
-
-# Download the Google Cloud public signing key
-sudo curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
-
-# Add the Kubernetes apt repository
-echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
 
 # Turn off Swap Space
 sudo swapoff -a
 sudo sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
 
-# Install kubeadm, kubelet, and kubectl
-sudo apt-get update -y
-sudo apt-get install -y kubelet kubeadm kubectl
-sudo apt-mark hold kubelet kubeadm kubectl
+# Update the apt package index and install packages, Kubernetes and containerd:
+sudo apt update -y
+sudo apt install -y apt-transport-https -y
 
-# Setup containerd
+sudo curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
+
+sudo cat <<EOF >/etc/apt/sources.list.d/kubernetes.list
+deb http://apt.kubernetes.io/ kubernetes-xenial main
+EOF
+   
+
+sudo apt update -y
+
+echo "Installing kubelet, kubeadm, containerd, and kubectl..."
+sudo apt install -y kubelet kubeadm containerd kubectl
+  
+echo "Setting apt-mark hold to prevent the package from being automatically upgraded or removed..."
+sudo apt-mark hold kubelet kubeadm kubectl containerd
+
+# Load the necessary modules for Containerd:
+
 sudo cat <<EOF | sudo tee /etc/modules-load.d/containerd.conf
 overlay
 br_netfilter
@@ -32,44 +38,44 @@ EOF
 sudo modprobe overlay
 sudo modprobe br_netfilter
 
-# Setup required sysctl params, these persist across reboots.
-sudo cat <<EOF | sudo tee /etc/sysctl.d/99-kubernetes-cri.conf
-net.bridge.bridge-nf-call-iptables  = 1
-net.ipv4.ip_forward                 = 1
-net.bridge.bridge-nf-call-ip6tables = 1
-EOF
+# Set up the required kernel parameters
+echo "Setting up required sysctl params... These persist across reboots."
 
-# Apply sysctl params without reboot
+sudo cat <<EOF | sudo tee /etc/sysctl.d/99-kubernetes-cri.conf
+net.bridge.bridge-nf-call-iptables = 1
+net.bridge.bridge-nf-call-ip6tables = 1
+net.ipv4.ip_forward = 1
+EOF
+    
+# Apply sysctl params without reboot	
 sudo sysctl --system
 
-#Install and configure containerd 
-sudo curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
-sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable"
-sudo apt update -y
-sudo apt install -y containerd.io
+# Configure containerd
 sudo mkdir -p /etc/containerd
 sudo containerd config default | sudo tee /etc/containerd/config.toml
-
-#Start containerd
-echo "Restarting containerd..." 
 sudo systemctl restart containerd
-echo "Enabling containerd..."
 sudo systemctl enable containerd
 
-# Enable and start kubelet service
-echo "Reloading kubelet daemon..."
-sudo systemctl daemon-reload
-echo "Starting kubelet..."
-sudo systemctl start kubelet
-echo "Enabling the kubelet service..."
+# Start and enable the kubelet service
+sudo systemctl daemon-reload 
+sudo systemctl start kubelet 
 sudo systemctl enable kubelet.service
+
 
 <<TheseWillApplyOnlyToTheManagerNode
 # Fetch images before cluster initialization
 sudo kubeadm config images pull
 
 # Initialize Kubernetes manager in the manager node
-sudo kubeadm init   --pod-network-cidr=192.168.0.0/16 --ignore-preflight-errors Swap
+# You may add the following flag while initializing: --ignore-preflight-errors Swap
+sudo kubeadm init 
+
+# IP address could be public (not recommended) or elastic IP address while 6443 represents the API Server Port.
+# To initialize Kubernetes on a public endpoint, remove the # to activate the command below (update the IP address accordingly):
+# kubeadm init --control-plane-endpoint "enterIPAddressHere:6443"
+
+# If error occurs, remove the # to activate the command below:
+# sudo kubeadm init --cri-socket /run/containerd/containerd.sock
 
 mkdir -p $HOME/.kube
 sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
@@ -78,8 +84,9 @@ sudo chown $(id -u):$(id -g) $HOME/.kube/config
 # To verify whether kubectl is working or not, run the following command:
 kubectl get pods -o wide --all-namespaces
 
-#From the foregoing, all but ‘coredns’ pod should be running. To resolve this, install Calico Network Plugin for Pod Networking
-kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
+# From the foregoing, all but ‘coredns’ pod should be running. To resolve this, install the Weaveworks OR Calico Network Plugin for Pod Networking
+kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
+# kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
 
 kubectl get nodes
 kubectl get pods --all-namespaces
