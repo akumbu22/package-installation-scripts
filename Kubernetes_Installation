@@ -90,6 +90,9 @@ kubectl get pods -o wide --all-namespaces
 kubectl apply -f https://github.com/weaveworks/weave/releases/download/v2.8.1/weave-daemonset-k8s.yaml
 # kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
 
+# Ensure that the API server port 6443 is open, otherwise, there will be failed connection.
+# For practice, you could open all ports.
+
 kubectl get nodes
 kubectl get pods --all-namespaces
 
